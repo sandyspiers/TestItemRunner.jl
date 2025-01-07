@@ -297,9 +297,12 @@ function open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
     pushfirst!(testitems_names, "abort")
 
     # create menu based on given type, returning if user didnt select anything
+    println("============ Select tests! ===================")
     if menutype == "radio"
-        testitems_selections = request(RadioMenu(testitems_names))
+        menu = RadioMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
+        testitems_selections = request(menu)
         if testitems_selections == -1
+            println("\n\n")
             return true
         elseif testitems_selections == 1
             # abort was chosen
@@ -310,8 +313,10 @@ function open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
         # fake it into a vector so its same format as if we instead used multiselect
         testitems_selections = [testitems_selections]
     elseif menutype == "multiselect"
-        testitems_selections = collect(request(MultiSelectMenu(testitems_names)))
+        menu = MultiSelectMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
+        testitems_selections = collect(request(menu))
         if length(testitems_selections) == 0
+            println("\n\n")
             return true
         elseif testitems_selections == [1]
             # abort was the only one chosen
