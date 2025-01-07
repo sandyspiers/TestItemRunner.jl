@@ -120,17 +120,8 @@ function run_testitem(filepath, use_default_usings, setups, package_name, origin
     end
 end
 
-"""
-    run_tests(path; filter=nothing, verbose=false)
-
-Run all test items in a directory and its subdirectories.
-
-# Arguments
-- `path`: The path to the directory containing the tests.
-- `filter`: A filter function to apply to the test items.
-- `verbose`: Whether to run the tests in verbose mode.
-"""
-function run_tests(path; filter=nothing, verbose=false)
+# Get package name and all @testitems and @testsetups
+function find_testitems(path; filter=nothing)
     # Find package name
     package_name = ""
     package_filename = isfile(joinpath(path, "Project.toml")) ? joinpath(path, "Project.toml") : isfile(joinpath(path, "JuliaProject.toml")) ? joinpath(path, "JuliaProject.toml") : nothing
@@ -191,6 +182,22 @@ function run_tests(path; filter=nothing, verbose=false)
         end
     end
 
+    return package_name, testitems, testsetups
+end
+
+"""
+    run_tests(path; filter=nothing, verbose=false)
+
+Run all test items in a directory and its subdirectories.
+
+# Arguments
+- `path`: The path to the directory containing the tests.
+- `filter`: A filter function to apply to the test items.
+- `verbose`: Whether to run the tests in verbose mode.
+"""
+function run_tests(path; filter=nothing, verbose=false)
+    # Get testitems
+    package_name, testitems, testsetups = find_testitems(path; filter=filter)
     # Run testitems
     test_setup_module = Core.eval(Main, :(module $(gensym()) end))
     test_setup_module_set = TestSetupModuleSet(test_setup_module, Set{Symbol}())
