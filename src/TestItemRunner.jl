@@ -24,6 +24,7 @@ module TestItemDetection
 end
 
 import Test, TestItems, TOML
+using REPL.TerminalMenus: RadioMenu, MultiSelectMenu, request
 using TestItems: @testitem
 
 include("vendored_code.jl")
@@ -268,6 +269,57 @@ macro run_package_tests(ex...)
     end
 
     :(run_tests(joinpath($(dirname(string(__source__.file))), ".."); $(kwargs...)))
+end
+
+"""
+    open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
+
+Opens up a TUI menu of a given type, which can be used to easily fire off unit test
+for the current project.
+
+# Arguments
+- `path`: The path to the directory containing the tests.
+- `filter`: A filter function to apply to the test items.
+- `verbose`: Whether to run the tests in verbose mode.
+- `menutype`: Type of terminal menu, choose from `radio` or `multiselect`
+"""
+function open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
+    # find all test items
+    package_name, testitems, testsetups = _find_testitems(path; filter=filter)
+
+    # prep testitems for the menu
+    testitems_flatten = [ti for (_, _testitems) in pairs(testitems) for ti in _testitems]
+    # use naming convetion `filename::testitemname`
+    testitems_names = map(ti -> "$(ti.filename)::$(ti.name)", testitems_flatten)
+
+    # create menu based on given type, returning if user didnt select anything
+    if menutype == "radio"
+        testitems_selections = request(RadioMenu(testitems_names))
+        if testitems_selections == -1
+            return
+        end
+    elseif menutype == "multiselect"
+        testitems_selections = request(MultiSelectMenu(testitems_names))
+        if length(testitems_selections) == 0
+            return
+        end
+    elseif menutype == "test"
+        # WARNING: this just for unit testing...
+        testitems_selections = [1]
+    else
+        @warn "$menutype is not a valid menu type! Please choose from `radio` or `multiselect`"
+    end
+
+    # recreate a dictionary of valid type ( filename => [tests....] )
+    testitems_selections = testitems_flatten[collect(testitems_selections)]
+    selected_files = Set(ti.filename for ti in testitems_selections)
+    testitems = Dict([f => [] for f in selected_files])
+    for ti in testitems_selections
+        push!(testitems[ti.filename], ti)
+    end
+
+    # run tests
+    _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
 end
 
 @static if VERSION < v"1.6"
