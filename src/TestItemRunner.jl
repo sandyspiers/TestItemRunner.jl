@@ -29,7 +29,7 @@ using TestItems: @testitem
 
 include("vendored_code.jl")
 
-export @run_package_tests, @testitem, open_test_menu
+export @run_package_tests, @testitem, @test_menu
 
 function compute_line_column(content, target_pos)
     line = 1
@@ -285,71 +285,78 @@ If abort is not chosen, returns true.
 - `verbose`: Whether to run the tests in verbose mode.
 - `menutype`: Type of terminal menu, choose from `radio` or `multiselect`
 """
-function open_test_menu(; path=".", filter=nothing, verbose=false, menutype="radio")
-    while true
-        # find all test items
-        package_name, testitems, testsetups = _find_testitems(path; filter=filter)
+function open_test_menu(path; filter=nothing, verbose=true, menutype="radio")
+    # find all test items
+    package_name, testitems, testsetups = _find_testitems(path; filter=filter)
 
-        # prep testitems for the menu
-        testitems_flatten = [ti for (_, _testitems) in pairs(testitems) for ti in _testitems]
-        # use naming convetion `filename::testitemname`
-        testitems_names = map(ti -> "$(ti.filename)::$(ti.name)", testitems_flatten)
-        # add the abort option
-        pushfirst!(testitems_names, "abort")
+    # prep testitems for the menu
+    testitems_flatten = [ti for (_, _testitems) in pairs(testitems) for ti in _testitems]
+    # use naming convetion `filename::testitemname`
+    testitems_names = map(ti -> "$(ti.filename)::$(ti.name)", testitems_flatten)
+    # add the abort option
+    pushfirst!(testitems_names, "abort")
 
-        # create menu based on given type, returning if user didnt select anything
+    # create menu based on given type, returning if user didnt select anything
+    if verbose
         println("============ Select tests! ===================")
-        if menutype == "radio"
-            menu = RadioMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
-            testitems_selections = request(menu)
-            if testitems_selections == -1
-                println("==============================================\n\n")
-                continue
-            elseif testitems_selections == 1
-                # abort was chosen
-                return
-            end
-            # offset because 'abort' was added
-            testitems_selections -= 1
-            # fake it into a vector so its same format as if we instead used multiselect
-            testitems_selections = [testitems_selections]
-        elseif menutype == "multiselect"
-            menu = MultiSelectMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
-            testitems_selections = collect(request(menu))
-            if length(testitems_selections) == 0
-                println("==============================================\n\n")
-                continue
-            elseif testitems_selections == [1]
-                # abort was the only one chosen
-                return
-            end
-            # if abort was chosen, remove it now
-            testitems_selections = testitems_selections[testitems_selections .> 1]
-            # offset because 'abort' was added
-            testitems_selections .-= 1
-        elseif menutype == "test"
-            # WARNING: this just for unit testing...
-            testitems_selections = [1]
-        else
-            @warn "$menutype is not a valid menu type! Please choose from `radio` or `multiselect`"
-            return
-        end
-
-        # recreate a dictionary of valid type ( filename => [tests....] )
-        testitems_selections = testitems_flatten[testitems_selections]
-        selected_files = Set(ti.filename for ti in testitems_selections)
-        testitems = Dict([f => [] for f in selected_files])
-        for ti in testitems_selections
-            push!(testitems[ti.filename], ti)
-        end
-
-        # run tests
-        _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
-        println("============ Tests complete! =================\n\n")
-        if menutype == "test"
-            return
-        end
     end
+    if menutype == "radio"
+        menu = RadioMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
+        testitems_selections = request(menu)
+        if testitems_selections == -1
+            if verbose
+                println("==============================================\n\n")
+            end
+            return true
+        elseif testitems_selections == 1
+            # abort was chosen
+            return false
+        end
+        # offset because 'abort' was added
+        testitems_selections -= 1
+        # fake it into a vector so its same format as if we instead used multiselect
+        testitems_selections = [testitems_selections]
+    elseif menutype == "multiselect"
+        menu = MultiSelectMenu(testitems_names; pagesize=first(displaysize(stdout)) - 6)
+        testitems_selections = collect(request(menu))
+        if length(testitems_selections) == 0
+            if verbose
+                println("==============================================\n\n")
+            end
+            return true
+        elseif testitems_selections == [1]
+            # abort was the only one chosen
+            return false
+        end
+        # if abort was chosen, remove it now
+        testitems_selections = testitems_selections[testitems_selections .> 1]
+        # offset because 'abort' was added
+        testitems_selections .-= 1
+    elseif menutype == "test"
+        # WARNING: this just for unit testing...
+        testitems_selections = [1]
+    else
+        @warn "$menutype is not a valid menu type! Please choose from `radio` or `multiselect`"
+        return false
+    end
+
+    # recreate a dictionary of valid type ( filename => [tests....] )
+    testitems_selections = testitems_flatten[testitems_selections]
+    selected_files = Set(ti.filename for ti in testitems_selections)
+    testitems = Dict([f => [] for f in selected_files])
+    for ti in testitems_selections
+        push!(testitems[ti.filename], ti)
+    end
+
+    # run tests
+    _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
+    if verbose
+        println("============ Tests complete! =================\n\n")
+    end
+    if menutype == "test"
+        return false
+    end
+    return true
 end
 
 """
@@ -378,7 +385,7 @@ macro test_menu(ex...)
     end
 
     quote
-        while open_test_menu(joinpath($(dirname(string(__source__.file))), "."); $(kwargs...))
+        while open_test_menu(joinpath($(dirname(string(__source__.file))), ".."); $(kwargs...))
         end
     end
 end

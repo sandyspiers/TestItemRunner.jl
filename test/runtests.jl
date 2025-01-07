@@ -19,5 +19,7 @@ dir = pwd()
 
 @run_package_tests filter=i->endswith(i.filename, "TestItemRunner.jl") || endswith(i.filename, "runtests.jl") verbose=true
 
+@test_menu filter=i->endswith(i.filename, "TestItemRunner.jl") || endswith(i.filename, "runtests.jl") verbose=true menutype="test"
+
 # Check that @run_package_tests didn't change the working directory
 TestItemRunner.Test.@test pwd() == dir
