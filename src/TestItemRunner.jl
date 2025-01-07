@@ -185,20 +185,7 @@ function _find_testitems(path; filter=nothing)
     return package_name, testitems, testsetups
 end
 
-"""
-    run_tests(path; filter=nothing, verbose=false)
-
-Run all test items in a directory and its subdirectories.
-
-# Arguments
-- `path`: The path to the directory containing the tests.
-- `filter`: A filter function to apply to the test items.
-- `verbose`: Whether to run the tests in verbose mode.
-"""
-function run_tests(path; filter=nothing, verbose=false)
-    # Get testitems
-    package_name, testitems, testsetups = _find_testitems(path; filter=filter)
-    # Run testitems
+function _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
     test_setup_module = Core.eval(Main, :(module $(gensym()) end))
     test_setup_module_set = TestSetupModuleSet(test_setup_module, Set{Symbol}())
     Test.push_testset(testset("Package"; verbose=verbose))
@@ -232,6 +219,23 @@ function run_tests(path; filter=nothing, verbose=false)
     end
     ts = Test.pop_testset()
     Test.finish(ts)
+end
+
+"""
+    run_tests(path; filter=nothing, verbose=false)
+
+Run all test items in a directory and its subdirectories.
+
+# Arguments
+- `path`: The path to the directory containing the tests.
+- `filter`: A filter function to apply to the test items.
+- `verbose`: Whether to run the tests in verbose mode.
+"""
+function run_tests(path; filter=nothing, verbose=false)
+    # Get testitems
+    package_name, testitems, testsetups = _find_testitems(path; filter=filter)
+    # Run testitems
+    _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
 end
 
 """
