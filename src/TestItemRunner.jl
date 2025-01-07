@@ -275,7 +275,9 @@ end
     open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
 
 Opens up a TUI menu of a given type, which can be used to easily fire off unit test
-for the current project.
+for the current project. Also, has an abort option, which if chosen will return false.
+In the case of multiselect, returns false if `abort` is **only** option chosen.
+If abort is not chosen, returns true.
 
 # Arguments
 - `path`: The path to the directory containing the tests.
@@ -291,27 +293,44 @@ function open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
     testitems_flatten = [ti for (_, _testitems) in pairs(testitems) for ti in _testitems]
     # use naming convetion `filename::testitemname`
     testitems_names = map(ti -> "$(ti.filename)::$(ti.name)", testitems_flatten)
+    # add the abort option
+    pushfirst!(testitems_names, "abort")
 
     # create menu based on given type, returning if user didnt select anything
     if menutype == "radio"
         testitems_selections = request(RadioMenu(testitems_names))
         if testitems_selections == -1
-            return
+            return true
+        elseif testitems_selections == 1
+            # abort was chosen
+            return false
         end
+        # offset because 'abort' was added
+        testitems_selections -= 1
+        # fake it into a vector so its same format as if we instead used multiselect
+        testitems_selections = [testitems_selections]
     elseif menutype == "multiselect"
-        testitems_selections = request(MultiSelectMenu(testitems_names))
+        testitems_selections = collect(request(MultiSelectMenu(testitems_names)))
         if length(testitems_selections) == 0
-            return
+            return true
+        elseif testitems_selections == [1]
+            # abort was the only one chosen
+            return false
         end
+        # if abort was chosen, remove it now
+        testitems_selections = testitems_selections[testitems_selections .> 1]
+        # offset because 'abort' was added
+        testitems_selections .-= 1
     elseif menutype == "test"
         # WARNING: this just for unit testing...
         testitems_selections = [1]
     else
         @warn "$menutype is not a valid menu type! Please choose from `radio` or `multiselect`"
+        return false
     end
 
     # recreate a dictionary of valid type ( filename => [tests....] )
-    testitems_selections = testitems_flatten[collect(testitems_selections)]
+    testitems_selections = testitems_flatten[testitems_selections]
     selected_files = Set(ti.filename for ti in testitems_selections)
     testitems = Dict([f => [] for f in selected_files])
     for ti in testitems_selections
@@ -320,6 +339,7 @@ function open_test_menu(path; filter=nothing, verbose=false, menutype="radio")
 
     # run tests
     _run_testitems(path, package_name, testitems, testsetups; verbose=verbose)
+    return true
 end
 
 @static if VERSION < v"1.6"
